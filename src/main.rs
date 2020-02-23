@@ -4,6 +4,8 @@ use winit::{
     window::Window,
     dpi::PhysicalSize,
 };
+use image::GenericImageView;
+use cgmath::SquareMatrix;
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -66,6 +68,7 @@ fn main() {
     });
 }
 
+#[allow(dead_code)]
 struct Cube {
     adapter: wgpu::Adapter,
     surface: wgpu::Surface,
@@ -78,6 +81,13 @@ struct Cube {
     num_indices: u32,
     render_pipeline: wgpu::RenderPipeline,
     camera: Camera,
+    diffuse_texture: wgpu::Texture,
+    diffuse_texture_view: wgpu::TextureView,
+    diffuse_sampler: wgpu::Sampler,
+    diffuse_bind_group: wgpu::BindGroup,
+    uniforms: Uniforms,
+    uniform_buffer: wgpu::Buffer,
+    uniform_bind_group: wgpu::BindGroup,
 }
 
 impl Cube {
@@ -88,7 +98,7 @@ impl Cube {
         }).unwrap();
         let surface = wgpu::Surface::create(window);
 
-        let (device, queue) = adapter.request_device(&wgpu::DeviceDescriptor {
+        let (device, mut queue) = adapter.request_device(&wgpu::DeviceDescriptor {
             extensions: wgpu::Extensions {
                 anisotropic_filtering: false,
             },
@@ -103,6 +113,138 @@ impl Cube {
             present_mode: wgpu::PresentMode::Vsync,
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
+
+        let camera = Camera {
+            eye: (3.0, 3.0, 3.0).into(),
+            target: (0.0, 0.0, 0.0).into(),
+            up: cgmath::Vector3::unit_y(),
+            aspect: sc_desc.width as f32 / sc_desc.height as f32,
+            fovy: 45.0,
+            znear: 0.1,
+            zfar: 100.0,
+        };
+
+        let mut uniforms = Uniforms::new();
+        uniforms.update_view_proj(&camera);
+
+        let uniform_buffer = device.create_buffer_mapped(1, wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST).fill_from_slice(&[uniforms]);
+
+        let uniform_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor{
+            bindings: &[
+                wgpu::BindGroupLayoutBinding{
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::VERTEX,
+                    ty: wgpu::BindingType::UniformBuffer {
+                        dynamic: false,
+                    },
+                },
+            ],
+        });
+
+        let uniform_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor{
+            layout: &uniform_bind_group_layout,
+            bindings: &[
+                wgpu::Binding {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &uniform_buffer,
+                        range: 0..std::mem::size_of_val(&uniforms) as wgpu::BufferAddress,
+                    },
+                },
+            ],
+        });
+
+        let diffuse_bytes = include_bytes!("abcd.png");
+        let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
+        let diffuse_rgba = diffuse_image.as_rgba8().unwrap();
+        
+        let dimensions = diffuse_image.dimensions();
+
+        let texture_size = wgpu::Extent3d {
+            width: dimensions.0,
+            height: dimensions.1,
+            depth: 1,
+        };
+
+        let diffuse_texture = device.create_texture(&wgpu::TextureDescriptor {
+            size: texture_size.clone(),
+            array_layer_count: 1,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
+        });
+
+        let diffuse_buffer = device.create_buffer_mapped(diffuse_rgba.len(), wgpu::BufferUsage::COPY_SRC).fill_from_slice(&diffuse_rgba);
+
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            todo: 0,
+        });
+
+        encoder.copy_buffer_to_texture(
+            wgpu::BufferCopyView {
+                buffer: &diffuse_buffer,
+                offset: 0,
+                row_pitch: 4 * dimensions.0,
+                image_height: dimensions.1,
+            },
+            wgpu::TextureCopyView {
+                texture: &diffuse_texture,
+                mip_level: 0,
+                array_layer: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            texture_size,
+        );
+
+        queue.submit(&[encoder.finish()]);
+
+        let diffuse_texture_view = diffuse_texture.create_default_view();
+
+        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor{
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            lod_min_clamp: -100.0,
+            lod_max_clamp: 100.0,
+            compare_function: wgpu::CompareFunction::Always,
+            mipmap_filter: wgpu::FilterMode::Linear,
+        });
+
+        let texture_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor{
+            bindings: &[
+                wgpu::BindGroupLayoutBinding{
+                    binding: 0,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::SampledTexture {
+                        multisampled: false,
+                        dimension: wgpu::TextureViewDimension::D2,
+                    },
+                },
+                wgpu::BindGroupLayoutBinding {
+                    binding: 1,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler,
+                },
+            ],
+        });
+
+        let diffuse_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            layout: &texture_bind_group_layout,
+            bindings: &[
+                wgpu::Binding {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&diffuse_texture_view),
+                },
+                wgpu::Binding {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
+                },
+            ],
+        });
 
         let vertex_buffer = device.create_buffer_mapped(VERTICES.len(), wgpu::BufferUsage::VERTEX).fill_from_slice(VERTICES);
 
@@ -123,7 +265,7 @@ impl Cube {
         let fs_module = device.create_shader_module(&fs_data);
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor{
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&texture_bind_group_layout, &uniform_bind_group_layout],
         });
 
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor{
@@ -138,7 +280,7 @@ impl Cube {
             }),
             rasterization_state: Some(wgpu::RasterizationStateDescriptor{
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: wgpu::CullMode::None,
+                cull_mode: wgpu::CullMode::Back,
                 depth_bias: 0,
                 depth_bias_slope_scale: 0.0,
                 depth_bias_clamp: 0.0,
@@ -162,16 +304,6 @@ impl Cube {
             alpha_to_coverage_enabled: false,
         });
 
-        let camera = Camera {
-            eye: (0.0, 1.0, -2.0).into(),
-            target: (0.0, 0.0, 0.0).into(),
-            up: cgmath::Vector3::unit_y(),
-            aspect: sc_desc.width as f32 / sc_desc.height as f32,
-            fovy: 45.0,
-            znear: 0.1,
-            zfar: 100.0,
-        };
-
         Self {
             adapter,
             device,
@@ -184,6 +316,13 @@ impl Cube {
             num_indices,
             render_pipeline,
             camera,
+            diffuse_sampler,
+            diffuse_texture,
+            diffuse_texture_view,
+            diffuse_bind_group,
+            uniforms,
+            uniform_buffer,
+            uniform_bind_group,
         }
     }
 
@@ -219,6 +358,8 @@ impl Cube {
             });
 
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+            render_pass.set_bind_group(1, &self.uniform_bind_group, &[]);
             render_pass.set_vertex_buffers(0, &[(&self.vertex_buffer, 0)]);
             render_pass.set_index_buffer(&self.index_buffer, 0);
             render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
@@ -233,7 +374,7 @@ impl Cube {
 
     }
 
-    fn input(&mut self, event: &WindowEvent) -> bool {
+    fn input(&mut self, _event: &WindowEvent) -> bool {
         false
     }
 }
@@ -242,33 +383,61 @@ impl Cube {
 #[derive(Debug, Copy, Clone)]
 struct Vertex {
     position: [f32; 3],
-    color: [f32; 3],
+    tex_coords: [f32; 2],
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.2, 0.4, 0.7] },
-    Vertex { position: [0.5, 0.5, 0.0], color: [0.2, 0.4, 0.1] },
-    Vertex { position: [-0.5, 0.5, 0.0], color: [0.2, 0.9, 0.7] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.9, 0.4, 0.7] },
-    Vertex { position: [0.5, -0.5, 0.5], color: [0.2, 0.8, 0.2] },
-    Vertex { position: [0.5, 0.5, 0.5], color: [0.8, 0.1, 0.7] },
-    Vertex { position: [-0.5, 0.5, 0.5], color: [0.1, 0.6, 0.2] },
-    Vertex { position: [-0.5, -0.5, 0.5], color: [0.9, 0.3, 1.0] },
+    //Right
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [0.0, 1.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [0.0, 0.0] },
+    //Left
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [1.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0] },
+    //Front
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 1.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0] },
+    //Back
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, 0.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [0.0, 1.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0] },
+    //Top
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 1.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 1.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0] },
+    //Bottom
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0] },
 ];
 
 const INDICES: &[u16] = &[
-    0, 1, 2,
-    0, 2, 3,
-    0, 6, 4,
-    0, 6, 2,
-    4, 6, 5,
-    4, 6, 7,
-    2, 5, 1,
-    2, 5, 6,
-    0, 5, 1,
-    0, 5, 4,
-    2, 7, 3,
-    2, 7, 6,
+    //Right
+    0, 1, 3,
+    3, 1, 2,
+    //Left
+    5, 4, 7,
+    7, 6, 5,
+    //Front
+    8, 9, 10,
+    10, 11, 8,
+    //Back
+    12, 13, 15,
+    15, 13, 14,
+    //Top
+    16, 17, 18,
+    18, 19, 16,
+    //Bottom
+    20, 21, 23,
+    23, 21, 22,
 ];
 
 impl Vertex {
@@ -284,7 +453,7 @@ impl Vertex {
                 },
                 wgpu::VertexAttributeDescriptor {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                    format: wgpu::VertexFormat::Float3,
+                    format: wgpu::VertexFormat::Float2,
                     shader_location: 1u32, 
                 },
             ],
@@ -307,5 +476,23 @@ impl Camera {
         let view = cgmath::Matrix4::look_at(self.eye, self.target, self.up);
         let proj = cgmath::perspective(cgmath::Deg(self.fovy), self.aspect, self.znear, self.zfar);
         return OPENGL_TO_WGPU_MATRIX * proj * view;
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct Uniforms {
+    view_proj: cgmath::Matrix4<f32>,
+}
+
+impl Uniforms {
+    fn new() -> Self {
+        Self {
+            view_proj: cgmath::Matrix4::identity(),
+        }
+    }
+
+    fn update_view_proj(&mut self, camera: &Camera) {
+        self.view_proj = camera.build_view_projection_matrix();
     }
 }
