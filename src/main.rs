@@ -6,6 +6,7 @@ use winit::{
 };
 use image::GenericImageView;
 use cgmath::SquareMatrix;
+use std::time::{Instant, Duration};
 
 #[cfg_attr(rustfmt, rustfmt_skip)]
 pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
@@ -19,6 +20,8 @@ fn main() {
     let event_loop = EventLoop::new();
     let window = Window::new(&event_loop).unwrap();
 
+    let time = Instant::now() + Duration::from_millis(40);
+
     let id = window.id();
 
     let mut cube = Cube::new(&window);
@@ -29,7 +32,7 @@ fn main() {
                 ref event,
                 window_id,
             } if window_id == id => if cube.input(event) {
-                *control_flow = ControlFlow::Wait;
+                *control_flow = ControlFlow::WaitUntil(time);
             } else {
                 match event {
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
@@ -42,28 +45,28 @@ fn main() {
                             virtual_keycode: Some(VirtualKeyCode::Escape),
                             ..
                         } => *control_flow = ControlFlow::Exit,
-                        _ => *control_flow = ControlFlow::Wait,
+                        _ => *control_flow = ControlFlow::WaitUntil(time),
                     },
                     WindowEvent::Resized(size) => {
                         cube.resize(*size);
-                        *control_flow = ControlFlow::Wait;
+                        *control_flow = ControlFlow::WaitUntil(time);
                     },
                     WindowEvent::ScaleFactorChanged {
                         new_inner_size,
                         ..
                     } => {
                         cube.resize(**new_inner_size);
-                        *control_flow = ControlFlow::Wait;
+                        *control_flow = ControlFlow::WaitUntil(time);
                     },
-                    _ => *control_flow = ControlFlow::Wait,
+                    _ => *control_flow = ControlFlow::WaitUntil(time),
                 }
             }
             Event::MainEventsCleared => {
                 cube.update();
                 cube.render();
-                *control_flow = ControlFlow::Wait;
+                *control_flow = ControlFlow::WaitUntil(time);
             },
-            _ => *control_flow = ControlFlow::Wait,
+            _ => *control_flow = ControlFlow::WaitUntil(time),
         }
     });
 }
@@ -122,6 +125,7 @@ impl Cube {
             fovy: 45.0,
             znear: 0.1,
             zfar: 100.0,
+            theta: 0.0,
         };
 
         let mut uniforms = Uniforms::new();
@@ -371,7 +375,24 @@ impl Cube {
     }
 
     fn update(&mut self) {
+        let r:f32 = 2.0f32.sqrt() * 3.0f32;
+        self.camera.theta += 0.005;
+        let sint = self.camera.theta.sin();
+        let cost = self.camera.theta.cos();
+        let (x, y) = ( (r * cost) as f32, (r * sint) as f32 );
+        self.camera.eye = ( x, y, 3.0).into();
 
+        self.uniforms.update_view_proj(&self.camera);
+
+        let temp_buf = self.device.create_buffer_mapped(1, wgpu::BufferUsage::COPY_SRC).fill_from_slice(&[self.uniforms]);
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor{
+            todo: 0,
+        });
+
+        encoder.copy_buffer_to_buffer(&temp_buf, 0, &self.uniform_buffer, 0, std::mem::size_of::<Uniforms>() as wgpu::BufferAddress);
+
+        self.queue.submit(&[encoder.finish()]);
     }
 
     fn input(&mut self, _event: &WindowEvent) -> bool {
@@ -469,6 +490,7 @@ struct Camera {
     fovy: f32,
     znear: f32,
     zfar: f32,
+    theta: f32,
 }
 
 impl Camera {
