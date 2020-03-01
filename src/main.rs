@@ -117,6 +117,12 @@ impl Cube {
         };
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
+        let light = Light {
+            direction: (0.9, 0.4, 1.0).into(),
+        };
+
+        let light_buffer = device.create_buffer_mapped(1, wgpu::BufferUsage::UNIFORM).fill_from_slice(&[light]);
+
         let camera = Camera {
             eye: (3.0, 3.0, 3.0).into(),
             target: (0.0, 0.0, 0.0).into(),
@@ -142,6 +148,13 @@ impl Cube {
                         dynamic: false,
                     },
                 },
+                wgpu::BindGroupLayoutBinding {
+                    binding: 1,
+                    visibility: wgpu::ShaderStage::FRAGMENT,
+                    ty: wgpu::BindingType::UniformBuffer {
+                        dynamic: false,
+                    },
+                },
             ],
         });
 
@@ -153,6 +166,13 @@ impl Cube {
                     resource: wgpu::BindingResource::Buffer {
                         buffer: &uniform_buffer,
                         range: 0..std::mem::size_of_val(&uniforms) as wgpu::BufferAddress,
+                    },
+                },
+                wgpu::Binding {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Buffer {
+                        buffer: &light_buffer,
+                        range: 0..std::mem::size_of_val(&light) as wgpu::BufferAddress,
                     },
                 },
             ],
@@ -377,6 +397,9 @@ impl Cube {
     fn update(&mut self) {
         let r:f32 = 2.0f32.sqrt() * 3.0f32;
         self.camera.theta += 0.005;
+        if self.camera.theta > 3.14 {
+            self.camera.theta = -3.14;
+        }
         let sint = self.camera.theta.sin();
         let cost = self.camera.theta.cos();
         let (x, y) = ( (r * cost) as f32, (r * sint) as f32 );
@@ -405,39 +428,40 @@ impl Cube {
 struct Vertex {
     position: [f32; 3],
     tex_coords: [f32; 2],
+    normal: [f32; 3],
 }
 
 const VERTICES: &[Vertex] = &[
     //Right
-    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [0.0, 1.0] },
-    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0] },
-    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0] },
-    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
     //Left
-    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [1.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [1.0, 1.0] },
-    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0] },
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
     //Front
-    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 1.0] },
-    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
     //Back
-    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, 0.0] },
-    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [0.0, 0.0] },
-    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [0.0, 1.0] },
-    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0] },
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
     //Top
-    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 1.0] },
-    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 1.0] },
-    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
     //Bottom
-    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0] },
-    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
 ];
 
 const INDICES: &[u16] = &[
@@ -476,6 +500,11 @@ impl Vertex {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     format: wgpu::VertexFormat::Float2,
                     shader_location: 1u32, 
+                },
+                wgpu::VertexAttributeDescriptor {
+                    offset: std::mem::size_of::<[f32; 5]>() as wgpu::BufferAddress,
+                    format: wgpu::VertexFormat::Float3,
+                    shader_location: 2u32,
                 },
             ],
         }
@@ -517,4 +546,10 @@ impl Uniforms {
     fn update_view_proj(&mut self, camera: &Camera) {
         self.view_proj = camera.build_view_projection_matrix();
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct Light {
+    direction: cgmath::Vector3<f32>,
 }
