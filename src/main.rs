@@ -118,7 +118,7 @@ impl Cube {
         let swap_chain = device.create_swap_chain(&surface, &sc_desc);
 
         let light = Light {
-            direction: (0.9, 0.4, 1.0).into(),
+            direction: (-0.9, 0.4, -1.0).into(),
         };
 
         let light_buffer = device.create_buffer_mapped(1, wgpu::BufferUsage::UNIFORM).fill_from_slice(&[light]);
@@ -438,30 +438,30 @@ const VERTICES: &[Vertex] = &[
     Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
     Vertex { position: [1.0, -1.0, -1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
     //Left
-    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [-1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [1.0, 0.0], normal: [-1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [-1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [-1.0, 0.0, 0.0] },
     //Front
-    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 0.0], normal: [0.0, 0.0, -1.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 0.0], normal: [0.0, 0.0, -1.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 1.0], normal: [0.0, 0.0, -1.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 1.0], normal: [0.0, 0.0, -1.0] },
     //Back
-    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [0.0, 0.0, 1.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [0.0, 0.0, 1.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [0.0, 0.0, 1.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, 0.0, 1.0] },
     //Top
-    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, 1.0], tex_coords: [0.0, 0.0], normal: [0.0, 1.0, 0.0] },
+    Vertex { position: [-1.0, -1.0, -1.0], tex_coords: [0.0, 1.0], normal: [0.0, 1.0, 0.0] },
+    Vertex { position: [1.0, -1.0, -1.0], tex_coords: [1.0, 1.0], normal: [0.0, 1.0, 0.0] },
+    Vertex { position: [1.0, -1.0, 1.0], tex_coords: [1.0, 0.0], normal: [0.0, 1.0, 0.0] },
     //Bottom
-    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 0.0], normal: [1.0, 0.0, 0.0] },
-    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [1.0, 0.0, 0.0] },
+    Vertex { position: [1.0, 1.0, 1.0], tex_coords: [1.0, 1.0], normal: [0.0, -1.0, 0.0] },
+    Vertex { position: [1.0, 1.0, -1.0], tex_coords: [1.0, 0.0], normal: [0.0, -1.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, -1.0], tex_coords: [0.0, 0.0], normal: [0.0, -1.0, 0.0] },
+    Vertex { position: [-1.0, 1.0, 1.0], tex_coords: [0.0, 1.0], normal: [0.0, -1.0, 0.0] },
 ];
 
 const INDICES: &[u16] = &[
