@@ -91,6 +91,7 @@ struct Cube {
     uniforms: Uniforms,
     uniform_buffer: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
+    multisampled_texture_view: wgpu::TextureView,
 }
 
 impl Cube {
@@ -133,6 +134,20 @@ impl Cube {
             zfar: 100.0,
             theta: 0.0,
         };
+
+        let multisampled_texture_view = device.create_texture(&wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width: inner_size.width,
+                height: inner_size.height,
+                depth: 1,
+            },
+            array_layer_count: 1,
+            mip_level_count: 1,
+            sample_count: 8,
+            dimension: wgpu::TextureDimension::D2,
+            format: sc_desc.format,
+            usage: wgpu::TextureUsage::OUTPUT_ATTACHMENT,
+        }).create_default_view();
 
         let mut uniforms = Uniforms::new();
         uniforms.update_view_proj(&camera);
@@ -194,7 +209,7 @@ impl Cube {
             size: texture_size.clone(),
             array_layer_count: 1,
             mip_level_count: 1,
-            sample_count: 1,
+            sample_count: 8,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsage::SAMPLED | wgpu::TextureUsage::COPY_DST,
@@ -244,7 +259,7 @@ impl Cube {
                     binding: 0,
                     visibility: wgpu::ShaderStage::FRAGMENT,
                     ty: wgpu::BindingType::SampledTexture {
-                        multisampled: false,
+                        multisampled: true,
                         dimension: wgpu::TextureViewDimension::D2,
                     },
                 },
@@ -323,7 +338,7 @@ impl Cube {
             vertex_buffers: &[
                 Vertex::desc(),
             ],
-            sample_count: 1,
+            sample_count: 8,
             sample_mask: !0,
             alpha_to_coverage_enabled: false,
         });
@@ -347,6 +362,7 @@ impl Cube {
             uniforms,
             uniform_buffer,
             uniform_bind_group,
+            multisampled_texture_view,
         }
     }
 
@@ -366,8 +382,8 @@ impl Cube {
             let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor{
                 color_attachments: &[
                     wgpu::RenderPassColorAttachmentDescriptor {
-                        attachment: &frame.view,
-                        resolve_target: None,
+                        attachment: &self.multisampled_texture_view,
+                        resolve_target: Some(&frame.view),
                         load_op: wgpu::LoadOp::Clear,
                         store_op: wgpu::StoreOp::Store,
                         clear_color: wgpu::Color {
